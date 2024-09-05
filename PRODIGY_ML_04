@@ -1,0 +1,81 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import train_test_split
+from google.colab import files
+
+print("Please upload your 'leapGestRecog' folder to Colab.")
+uploaded = files.upload()
+
+!unzip leapGestRecog.zip -d leapGestRecog
+
+def load_images(folder_path, img_size=(64, 64)):
+    images = []
+    labels = []
+    for label, folder in enumerate(sorted(os.listdir(folder_path))):
+        folder_path_full = os.path.join(folder_path, folder)
+        for img_name in os.listdir(folder_path_full):
+            img_path = os.path.join(folder_path_full, img_name)
+            img = keras.preprocessing.image.load_img(img_path, target_size=img_size, color_mode='grayscale')
+            img_array = keras.preprocessing.image.img_to_array(img)
+            images.append(img_array)
+            labels.append(label)
+    return np.array(images), np.array(labels)
+
+dataset_path = 'leapGestRecog'
+images, labels = load_images(dataset_path)
+images = images / 255.0  # Normalize pixel values
+
+X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.2, random_state=42)
+
+model = keras.Sequential([
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(64, 64, 1)),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.Flatten(),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(10, activation='softmax')
+])
+
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+
+history = model.fit(X_train, y_train, epochs=20, validation_split=0.2, batch_size=32)
+
+test_loss, test_acc = model.evaluate(X_test, y_test, verbose=2)
+print(f"\nTest accuracy: {test_acc}")
+
+def predict_gesture(image_path, model):
+    img = keras.preprocessing.image.load_img(image_path, target_size=(64, 64), color_mode='grayscale')
+    img_array = keras.preprocessing.image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array /= 255.0
+    prediction = model.predict(img_array)
+    return np.argmax(prediction)
+
+
+print("Upload an image to test the model:")
+uploaded = files.upload()
+test_image_path = next(iter(uploaded))
+
+gesture = predict_gesture(test_image_path, model)
+print(f"Predicted gesture: {gesture}")
+
+
+plt.plot(history.history['accuracy'], label='accuracy')
+plt.plot(history.history['val_accuracy'], label='val_accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim([0, 1])
+plt.legend(loc='lower right')
+plt.show()
